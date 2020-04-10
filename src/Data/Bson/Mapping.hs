@@ -55,7 +55,7 @@ import Language.Haskell.TH.Lift ()
 
 class (Show a, Eq a, Typeable a) => Bson a where
   toBson     :: a -> Document
-   fromBson   :: MonadFail m => Document -> m a
+  fromBson   :: MonadFail m => Document -> m a
 
 -- | Derive 'Bson' and 'Val' declarations for a data type.
 deriveBson :: Name -> Q [Dec]
