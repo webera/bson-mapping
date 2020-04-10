@@ -55,7 +55,7 @@ import Language.Haskell.TH.Lift ()
 
 class (Show a, Eq a, Typeable a) => Bson a where
   toBson     :: a -> Document
-  fromBson   :: Monad m => Document -> m a
+   fromBson   :: MonadFail m => Document -> m a
 
 -- | Derive 'Bson' and 'Val' declarations for a data type.
 deriveBson :: Name -> Q [Dec]
@@ -75,9 +75,9 @@ deriveBson type' = do
   -- automatically a Val)
   doc <- newName "doc"
   i' <- instanceD (cxt []) (mkType ''Val [mkType type' (map varT keys)])
-        [ funD 'val   [clause [] (normalB $ [| Doc . toBson |]) []]
-        , funD 'cast' [ clause [conP 'Doc [varP doc]] (normalB $ [| fromBson $(varE doc) |]) []
-                      , clause [[p| _ |]] (normalB $ [| Nothing |]) []
+        [ funD 'val   [clause [] (normalB [| Doc . toBson |]) []]
+        , funD 'cast' [ clause [conP 'Doc [varP doc]] (normalB [| fromBson $(varE doc) |]) []
+                      , clause [[p| _ |]] (normalB [| Nothing |]) []
                       ]
         ]
 
@@ -116,12 +116,10 @@ deriveBson type' = do
       -- With data Foo = Foo {one :: String, two :: Int}
       -- This will produce something like:
       -- toBson i@Foo{} = merge ["_cons" =: "Foo"] ["one" =: one i, "two" =: two i]
-      clause [asP i (recP name [])] (normalB $ [| (merge $(getConsDoc name)) ($fieldsDoc $(varE i)) |]) []
+      clause [asP i (recP name [])] (normalB [| merge $(getConsDoc name) ($fieldsDoc $(varE i)) |]) []
     -- If it's a normal constructor, generate a document with an array
     -- with the data.
-    deriveToBson (NormalC name types) = do
-      -- There are no types, but just a constructor (data Foo = Foo),
-      -- simply store the constructor name.
+    deriveToBson (NormalC name types) =
       if null types
         then clause [recP name []] (normalB $ getConsDoc name) []
         -- Else, convert all the data inside the data types to an array
@@ -131,7 +129,7 @@ deriveBson type' = do
         else do
           fields <- mapM (\_ -> newName "f") types
           clause [conP name (map varP fields)]
-            (normalB $ [| (merge $(getConsDoc name)) . (\f -> [dataField =: f]) $ $(listE (map varE fields)) |]) []
+            (normalB [| merge $(getConsDoc name) . (\f -> [dataField =: f]) $ $(listE (map varE fields)) |]) []
     deriveToBson _ = inputError
 
 
@@ -159,7 +157,7 @@ deriveBson type' = do
       -- Match the string literal that we got from the doc (_cons)
       flip (match (litP $ StringL $ nameBase name)) [] $ do
         (fields', stmts) <- genStmts (map (\(n, _, _) -> n) fields) doc
-        let ci = noBindS $ [| return $(recConE name fields') |]
+        let ci = noBindS [| return $(recConE name fields') |]
         normalB (doE $ stmts ++ [ci])
     genMatch doc (NormalC name types) =
       flip (match (litP $ StringL $ nameBase name)) [] $
@@ -177,7 +175,7 @@ deriveBson type' = do
           let typesN = length types
           types' <- mapM (\_ -> newName "t") types
           let typesP = listP $ map varP types'
-              con    = foldl (\e f -> (appE e (varE f))) (conE name) types'
+              con    = foldl (\e f -> appE e (varE f)) (conE name) types'
           normalB $ doE [ bindS (varP data') [| lookup dataField $doc |]
                         , noBindS [| if length $(varE data') /= $([| typesN |])
                                      then fail "Wrong data for the constructor."
@@ -195,9 +193,9 @@ deriveBson type' = do
     genStmts [] _ = return ([], [])
     genStmts (f : fs) doc = do
       fvar <- newName "f"
-      let stmt = bindS (varP fvar) $ [| lookup (pack (nameBase f)) $doc |]
+      let stmt = bindS (varP fvar) [| lookup (pack (nameBase f)) $doc |]
       (fields, stmts) <- genStmts fs doc
-      return $ (return (f, VarE fvar) : fields, stmt : stmts)
+      return (return (f, VarE fvar) : fields, stmt : stmts)
 
 
 dataField, consField :: Text
@@ -220,7 +218,7 @@ selectFields ns = do
   lamE [varP d] (return e)
   where
     gf _ []        = [| [] |]
-    gf d (n : ns') = [| ((pack $(getLabel n)) =: $(varE n) $(varE d)) : $(gf d ns') |]
+    gf d (n : ns') = [| (pack $(getLabel n) =: $(varE n) $(varE d)) : $(gf d ns') |]
 
 {-|
 
