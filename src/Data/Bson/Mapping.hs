@@ -95,8 +95,8 @@ deriveBson type' = do
 
     mkType con = foldl appT (conT con)
 
-    conv (PlainTV n)    = n
-    conv (KindedTV n _) = n
+    conv (PlainTV n _)    = n
+    conv (KindedTV n _ _) = n
 
     inputError = error $ "deriveBson: Invalid type provided. " ++
                          "The type must be a data type or a newtype. " ++

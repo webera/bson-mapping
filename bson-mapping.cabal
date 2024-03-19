@@ -11,7 +11,7 @@ Synopsis:           Mapping between BSON and algebraic data types.
 Description: This module defines a Bson class to convert data types to Bson and to convert Bson documents back to datatypes, along with template haskell functions to easily derive the instance.
 Tested-With:        GHC==7.0.2
 Build-Type:         Simple
-Cabal-Version:      >= 1.6
+Cabal-Version:      >= 1.8
 
 source-repository head
     type:     git
@@ -22,7 +22,7 @@ Library
                       template-haskell >= 2.11.0.0,
                       th-lift >= 0.5.3,
                       bson >= 0.3,
-                      text == 1.2.*
+                      text >= 2.0.2
 
   hs-source-dirs:     src
 
